@@ -1413,3 +1413,65 @@ body {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Mobile Transfer Item Grid Layout to prevent overlapping & screen breaking */
+#mobileLayout .transfer-item {
+  display: grid !important;
+  grid-template-columns: 44px 1fr !important;
+  grid-template-rows: auto auto auto !important;
+  gap: 12px !important;
+  padding: 14px !important;
+  align-items: center !important;
+}
+
+#mobileLayout .transfer-icon {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  margin: 0 !important;
+}
+
+#mobileLayout .transfer-info {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+#mobileLayout .transfer-name {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100% !important;
+}
+
+#mobileLayout .transfer-progress {
+  grid-column: 1 / span 2 !important;
+  grid-row: 2 !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+#mobileLayout .progress-bar {
+  width: 100% !important;
+}
+
+#mobileLayout .transfer-actions {
+  grid-column: 1 / span 2 !important;
+  grid-row: 3 !important;
+  width: 100% !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin-top: 4px !important;
+  border-top: none !important;
+  padding-top: 0 !important;
+}
+
+#mobileLayout .transfer-actions button {
+  width: auto !important;
+  padding: 8px 18px !important;
+}
+
+#mobileLayout .transfer-status-text {
+  width: auto !important;
+  text-align: right !important;
+}
