@@ -4,7 +4,14 @@ let peers = {};
 let transfers = {};
 let myId = null;
 let reconnectDelay = 1000;
-let wsUploadSocket = null;
+
+// Performance Caches
+const domCache = {
+  transfers: {}, // { "prefix-id": { card, fill, text, speed, actions } }
+};
+
+// Check viewport width lazily
+const isMobileViewport = () => window.innerWidth < 768;
 
 const autoDownloadEl = document.getElementById('autoDownload');
 
@@ -38,10 +45,12 @@ wanToggleEl.addEventListener('change', () => {
 
 function setConnStatus(state) {
   const el = document.getElementById('connStatus');
-  el.className = 'conn-status ' + state;
-  el.querySelector('.conn-label').textContent =
-    state === 'connected' ? 'Connected' :
-    state === 'reconnecting' ? 'Reconnecting...' : 'Disconnected';
+  if (el) {
+    el.className = 'conn-status ' + state;
+    el.querySelector('.conn-label').textContent =
+      state === 'connected' ? 'Connected' :
+      state === 'reconnecting' ? 'Reconnecting...' : 'Disconnected';
+  }
 
   const mEl = document.getElementById('mobileConnStatus');
   if (mEl) {
@@ -79,6 +88,17 @@ function connect() {
   };
 }
 
+// RequestAnimationFrame queue for UI rendering pipeline updates
+let renderTransfersScheduled = false;
+function queueRenderTransfers() {
+  if (renderTransfersScheduled) return;
+  renderTransfersScheduled = true;
+  requestAnimationFrame(() => {
+    renderTransfers();
+    renderTransfersScheduled = false;
+  });
+}
+
 function handleMsg(msg) {
   switch (msg.type) {
     case 'my_id':
@@ -102,17 +122,17 @@ function handleMsg(msg) {
       break;
     case 'transfer_new':
       transfers[msg.transfer.id] = msg.transfer;
-      renderTransfers();
+      queueRenderTransfers();
       break;
     case 'transfer_progress':
       if (transfers[msg.transfer.id]) {
         transfers[msg.transfer.id] = msg.transfer;
-        renderTransfers();
+        queueRenderTransfers();
       }
       break;
     case 'transfer_complete':
       transfers[msg.transfer.id] = msg.transfer;
-      renderTransfers();
+      queueRenderTransfers();
       if (msg.transfer.direction === 'receive' && autoDownloadEl.checked) {
         downloadFile(msg.transfer.id, msg.transfer.filename);
       }
@@ -121,7 +141,7 @@ function handleMsg(msg) {
     case 'transfer_error':
       if (transfers[msg.id]) {
         transfers[msg.id].status = 'failed';
-        renderTransfers();
+        queueRenderTransfers();
       }
       showToast(`Transfer failed: ${msg.message}`, 'error');
       break;
@@ -262,21 +282,6 @@ function renderPeers() {
           <span class="radar-peer-name">#${short}</span>
         </div>`;
       }).join('');
-
-      radarWrapper.querySelectorAll('.radar-peer-node').forEach(node => {
-        node.addEventListener('click', () => {
-          const id = node.dataset.id;
-          const p = peers[id];
-          const isConnected = !!connectedPeers[id] || p.connected;
-          if (!isConnected) {
-            connectToPeer(id);
-          } else {
-            selectedPeerId = id;
-            renderConnectedPeers();
-            showToast('Selected device / 已选中设备', 'success');
-          }
-        });
-      });
     }
   }
 
@@ -303,26 +308,6 @@ function renderPeers() {
 
   if (list) list.innerHTML = listHTML;
   if (mList) mList.innerHTML = listHTML;
-
-  const bindClicks = (el) => {
-    if (!el) return;
-    el.querySelectorAll('li[data-id]').forEach(li => {
-      li.addEventListener('click', () => {
-        const id = li.dataset.id;
-        const isConnected = li.dataset.connected === 'true';
-        if (!isConnected) {
-          connectToPeer(id);
-        } else {
-          selectedPeerId = id;
-          renderConnectedPeers();
-          showToast('Selected device for transfer / 已选中该传输设备', 'success');
-        }
-      });
-    });
-  };
-
-  bindClicks(list);
-  bindClicks(mList);
 }
 
 function renderConnectedPeers() {
@@ -356,28 +341,6 @@ function renderConnectedPeers() {
 
   if (list) list.innerHTML = listHTML;
   if (mList) mList.innerHTML = listHTML;
-
-  const bindClicks = (el) => {
-    if (!el) return;
-    el.querySelectorAll('li[data-id]').forEach(li => {
-      li.addEventListener('click', (e) => {
-        if (e.target.closest('.disconnect-btn')) return;
-        selectedPeerId = li.dataset.id;
-        renderConnectedPeers();
-      });
-    });
-
-    el.querySelectorAll('.disconnect-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const id = btn.dataset.id;
-        disconnectPeer(id);
-      });
-    });
-  };
-
-  bindClicks(list);
-  bindClicks(mList);
 }
 
 function disconnectPeer(id) {
@@ -418,13 +381,24 @@ function renderTransfers() {
     if (mList) mList.innerHTML = '';
     if (empty) empty.style.display = 'block';
     if (mEmpty) mEmpty.style.display = 'block';
+    // Clear DOM reference cache
+    domCache.transfers = {};
     return;
   }
   if (empty) empty.style.display = 'none';
   if (mEmpty) mEmpty.style.display = 'none';
 
+  const isMobile = isMobileViewport();
+
   const updateList = (targetList) => {
     if (!targetList) return;
+    const prefix = targetList.id === 'mobileTransferList' ? 'm-' : '';
+    
+    // Viewport-aware rendering: bypass calculations for hidden tab screens
+    if ((prefix === 'm-' && !isMobile) || (prefix === '' && isMobile)) {
+      return;
+    }
+
     arr.forEach(t => {
       const pct = t.size > 0 ? Math.round((t.bytes_done / t.size) * 100) : 0;
       const speed = t.speed > 0 ? formatSpeed(t.speed) : '';
@@ -432,59 +406,78 @@ function renderTransfers() {
       const size = formatSize(t.size);
       const statusClass = t.status === 'complete' ? 'complete' : t.status === 'failed' ? 'failed' : '';
 
-      const prefix = targetList.id === 'mobileTransferList' ? 'm-' : '';
-      let card = document.getElementById(`${prefix}transfer-card-${t.id}`);
-      if (!card) {
-        card = document.createElement('div');
-        card.id = `${prefix}transfer-card-${t.id}`;
-        card.className = `transfer-item ${statusClass}`;
-        
-        const icon = t.direction === 'send' ? '↑' : '↓';
-        
-        card.innerHTML = `
-          <div class="transfer-icon">${icon}</div>
-          <div class="transfer-info">
-            <div class="transfer-name">${t.filename}</div>
-            <div class="transfer-meta">
-              <span class="meta-size">${size}</span>
-              <span class="meta-peer">${t.direction === 'send' ? 'To' : 'From'}: ${t.peer_id.slice(-8)}</span>
-              <span class="meta-speed">${speed ? speed : ''}</span>
+      const cacheKey = `${prefix}transfer-card-${t.id}`;
+      let cached = domCache.transfers[cacheKey];
+
+      // O(1) DOM lookup cache path
+      if (!cached) {
+        let card = document.getElementById(cacheKey);
+        if (!card) {
+          card = document.createElement('div');
+          card.id = cacheKey;
+          card.className = `transfer-item ${statusClass}`;
+          
+          const icon = t.direction === 'send' ? '↑' : '↓';
+          
+          card.innerHTML = `
+            <div class="transfer-icon">${icon}</div>
+            <div class="transfer-info">
+              <div class="transfer-name">${t.filename}</div>
+              <div class="transfer-meta">
+                <span class="meta-size">${size}</span>
+                <span class="meta-peer">${t.direction === 'send' ? 'To' : 'From'}: ${t.peer_id.slice(-8)}</span>
+                <span class="meta-speed">${speed ? speed : ''}</span>
+              </div>
             </div>
-          </div>
-          <div class="transfer-progress">
-            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-            <div class="progress-text">${pct}% (${done})</div>
-          </div>
-          <div class="transfer-actions"></div>
-        `;
-        targetList.appendChild(card);
+            <div class="transfer-progress">
+              <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+              <div class="progress-text">${pct}% (${done})</div>
+            </div>
+            <div class="transfer-actions"></div>
+          `;
+          targetList.appendChild(card);
+        }
+
+        // Cache elements
+        cached = {
+          card: card,
+          fill: card.querySelector('.progress-fill'),
+          text: card.querySelector('.progress-text'),
+          speed: card.querySelector('.meta-speed'),
+          actions: card.querySelector('.transfer-actions')
+        };
+        domCache.transfers[cacheKey] = cached;
       }
 
+      const { card, fill, text, speed: speedSpan, actions } = cached;
+
+      // Fast UI synchronization updates
       if (card.className !== `transfer-item ${statusClass}`) {
         card.className = `transfer-item ${statusClass}`;
       }
       
-      const fill = card.querySelector('.progress-fill');
       if (fill && fill.style.width !== `${pct}%`) {
         fill.style.width = `${pct}%`;
       }
       
-      const progText = card.querySelector('.progress-text');
-      if (progText && progText.textContent !== `${pct}% (${done})`) {
-        progText.textContent = `${pct}% (${done})`;
+      const textVal = `${pct}% (${done})`;
+      if (text && text.textContent !== textVal) {
+        text.textContent = textVal;
       }
       
-      const speedSpan = card.querySelector('.meta-speed');
-      if (speedSpan && speedSpan.textContent !== speed) {
-        speedSpan.textContent = speed ? speed : '';
-        speedSpan.style.display = speed ? 'inline-block' : 'none';
+      if (speedSpan) {
+        if (speed) {
+          if (speedSpan.textContent !== speed) speedSpan.textContent = speed;
+          if (speedSpan.style.display !== 'inline-block') speedSpan.style.display = 'inline-block';
+        } else {
+          if (speedSpan.style.display !== 'none') speedSpan.style.display = 'none';
+        }
       }
 
-      const actions = card.querySelector('.transfer-actions');
       if (actions) {
         let actionHTML = '';
         if (t.status === 'complete' && t.direction === 'receive') {
-          actionHTML = `<button onclick="downloadFile('${t.id}', '${t.filename.replace(/'/g, "\\'")}')">Save</button>`;
+          actionHTML = `<button class="download-action-btn" data-id="${t.id}" data-filename="${t.filename.replace(/'/g, "\\'")}">Save</button>`;
         } else if (t.status === 'pending' || t.status === 'transferring') {
           actionHTML = `<span class="transfer-status-text">${t.status}</span>`;
         } else if (t.status === 'failed') {
@@ -498,10 +491,10 @@ function renderTransfers() {
 
     const existingCards = targetList.querySelectorAll('.transfer-item');
     existingCards.forEach(card => {
-      const prefix = targetList.id === 'mobileTransferList' ? 'm-' : '';
       const id = card.id.replace(`${prefix}transfer-card-`, '');
       if (!transfers[id]) {
         card.remove();
+        delete domCache.transfers[card.id];
       }
     });
   };
@@ -556,7 +549,7 @@ function sendFile(file) {
 
   xhr.upload.onprogress = (e) => {
     if (e.lengthComputable) {
-      // Update UI for send progress (handled via WS broadcast)
+      // Handled via WS broadcast
     }
   };
 
@@ -564,7 +557,7 @@ function sendFile(file) {
     if (xhr.status === 200) {
       const t = JSON.parse(xhr.responseText);
       transfers[t.id] = t;
-      renderTransfers();
+      queueRenderTransfers();
     } else {
       showToast(`Send failed: ${xhr.responseText}`, 'error');
     }
@@ -574,7 +567,7 @@ function sendFile(file) {
   xhr.send(form);
 }
 
-// File sending via WebSocket with chunked upload for better progress
+// File sending via WebSocket with chunked upload (allocation-free streaming)
 function sendFileWS(file) {
   if (!selectedPeerId) {
     showToast('Select a peer first', 'error');
@@ -585,7 +578,7 @@ function sendFileWS(file) {
   const sock = new WebSocket(`${proto}//${location.host}/ws/upload`);
   sock.binaryType = 'arraybuffer';
 
-  sock.onopen = () => {
+  sock.onopen = async () => {
     // Send metadata first
     sock.send(JSON.stringify({
       type: 'upload',
@@ -598,7 +591,9 @@ function sendFileWS(file) {
     const chunkSize = 64 * 1024;
     let offset = 0;
 
-    function sendNext() {
+    async function sendNext() {
+      if (sock.readyState !== WebSocket.OPEN) return;
+
       if (sock.bufferedAmount > 1024 * 1024) { // Buffer > 1MB, throttle backpressure
         setTimeout(sendNext, 40);
         return;
@@ -609,13 +604,16 @@ function sendFileWS(file) {
         return;
       }
       const slice = file.slice(offset, offset + chunkSize);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        sock.send(e.target.result);
-        offset += e.target.result.byteLength;
+      try {
+        // Zero-allocation async buffer reading
+        const buf = await slice.arrayBuffer();
+        sock.send(buf);
+        offset += buf.byteLength;
         sendNext();
-      };
-      reader.readAsArrayBuffer(slice);
+      } catch (err) {
+        console.error("chunk stream error", err);
+        sock.close();
+      }
     }
     sendNext();
   };
@@ -625,7 +623,7 @@ function sendFileWS(file) {
     if (msg.type === 'upload_progress' && transfers[msg.transfer_id]) {
       transfers[msg.transfer_id].bytes_done = msg.done;
       transfers[msg.transfer_id].speed = msg.speed;
-      renderTransfers();
+      queueRenderTransfers();
     } else if (msg.type === 'upload_complete') {
       if (msg.success) {
         showToast('Upload complete', 'success');
@@ -635,7 +633,7 @@ function sendFileWS(file) {
       sock.close();
     } else if (msg.type === 'transfer_new') {
       transfers[msg.transfer.id] = msg.transfer;
-      renderTransfers();
+      queueRenderTransfers();
     }
   };
 
@@ -747,7 +745,7 @@ function loadNetworkInterfaces() {
     .then(data => {
       let interfaces = data.interfaces || [];
 
-      // Android native bridge fallback if Go returns nothing
+      // Android native bridge fallback
       if (interfaces.length === 0 && typeof Android !== 'undefined' && Android.getLocalInterfacesJson) {
         try {
           const nativeJson = Android.getLocalInterfacesJson();
@@ -825,9 +823,86 @@ if (scanBtn) {
   });
 }
 
-// Sync settings, navigation tabs, and inputs between PC and mobile layout DOMs
+// Single Event Delegation for entire DOM lists (PC & Mobile layouts)
+function initEventDelegation() {
+  const handlePeerClick = (e) => {
+    const li = e.target.closest('li[data-id]');
+    if (!li) return;
+    const id = li.dataset.id;
+    const isConnected = li.dataset.connected === 'true';
+    if (!isConnected) {
+      connectToPeer(id);
+    } else {
+      selectedPeerId = id;
+      renderConnectedPeers();
+      showToast('Selected device for transfer / 已选中该传输设备', 'success');
+    }
+  };
+
+  const list = document.getElementById('peerList');
+  const mList = document.getElementById('mobilePeerList');
+  if (list) list.addEventListener('click', handlePeerClick);
+  if (mList) mList.addEventListener('click', handlePeerClick);
+
+  // Radar floating avatars delegation
+  const radarWrapper = document.getElementById('radar-peers');
+  if (radarWrapper) {
+    radarWrapper.addEventListener('click', (e) => {
+      const node = e.target.closest('.radar-peer-node');
+      if (!node) return;
+      const id = node.dataset.id;
+      const p = peers[id];
+      const isConnected = !!connectedPeers[id] || (p && p.connected);
+      if (!isConnected) {
+        connectToPeer(id);
+      } else {
+        selectedPeerId = id;
+        renderConnectedPeers();
+        showToast('Selected device / 已选中设备', 'success');
+      }
+    });
+  }
+
+  // Connected peers list delegation
+  const handleConnectedClick = (e) => {
+    const btn = e.target.closest('.disconnect-btn');
+    if (btn) {
+      e.stopPropagation();
+      disconnectPeer(btn.dataset.id);
+      return;
+    }
+    const li = e.target.closest('li[data-id]');
+    if (li) {
+      selectedPeerId = li.dataset.id;
+      renderConnectedPeers();
+    }
+  };
+
+  const connList = document.getElementById('connectedPeerList');
+  const mConnList = document.getElementById('mobileConnectedPeerList');
+  if (connList) connList.addEventListener('click', handleConnectedClick);
+  if (mConnList) mConnList.addEventListener('click', handleConnectedClick);
+}
+
+// Single Event Delegation for transfer download/save actions
+function initTransferDelegation() {
+  const handleTransferClick = (e) => {
+    const btn = e.target.closest('.download-action-btn');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const filename = btn.dataset.filename;
+    downloadFile(id, filename);
+  };
+
+  const list = document.getElementById('transferList');
+  const mList = document.getElementById('mobileTransferList');
+  if (list) list.addEventListener('click', handleTransferClick);
+  if (mList) mList.addEventListener('click', handleTransferClick);
+}
+
+// Sync settings and controls between PC and mobile layout DOMs
 function initMobileController() {
-  // 1. Mobile Bottom Tab Navigation Switching
+  // Mobile Tab Navigation Routing
   const tabs = document.querySelectorAll('.nav-tab');
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
@@ -840,10 +915,13 @@ function initMobileController() {
       });
       const targetView = document.getElementById(`mobile-view-${targetTab}`);
       if (targetView) targetView.classList.add('active');
+      
+      // Update viewport renderings when switching mobile tabs
+      queueRenderTransfers();
     });
   });
 
-  // 2. Sync WAN settings
+  // Sync WAN settings
   const mobileWanToggleEl = document.getElementById('mobileWanToggle');
   if (mobileWanToggleEl) {
     mobileWanToggleEl.addEventListener('change', () => {
@@ -852,7 +930,7 @@ function initMobileController() {
     });
   }
 
-  // 3. Sync Auto-download settings
+  // Sync Auto-download preferences
   const mobileAutoDownloadEl = document.getElementById('mobileAutoDownload');
   if (mobileAutoDownloadEl) {
     mobileAutoDownloadEl.addEventListener('change', () => {
@@ -861,7 +939,7 @@ function initMobileController() {
     });
   }
 
-  // 4. Sync Subnet selector and scanning triggers
+  // Sync Subnet scanning triggers
   const mScanBtn = document.getElementById('mobileSubnetScanBtn');
   if (mScanBtn) {
     mScanBtn.addEventListener('click', () => {
@@ -876,10 +954,8 @@ function initMobileController() {
         const originalText = textEl.textContent;
         textEl.textContent = 'Scanning... / 正在扫描...';
         
-        // Trigger click event on main subnetScanBtn
         scanBtn.click();
         
-        // Wait and reset the visual state once the scan finishes
         setTimeout(() => {
           mScanBtn.disabled = false;
           mScanBtn.classList.remove('scanning');
@@ -889,7 +965,7 @@ function initMobileController() {
     });
   }
 
-  // 5. Short code click/copy trigger
+  // Short code click/copy trigger
   const mShortCode = document.getElementById('mobileShortCodeCard');
   if (mShortCode) {
     mShortCode.addEventListener('click', () => {
@@ -897,7 +973,7 @@ function initMobileController() {
     });
   }
 
-  // 6. Mobile File Picker triggers
+  // Mobile File Pickers
   const mChooseBtn = document.getElementById('mobileChooseFilesBtn');
   const mFileInput = document.getElementById('mobileFileInput');
   if (mChooseBtn && mFileInput) {
@@ -912,7 +988,7 @@ function initMobileController() {
     });
   }
 
-  // 7. Manual Connect trigger
+  // Manual Connect inputs
   const mConnectBtn = document.getElementById('mobileConnectBtn');
   if (mConnectBtn) {
     mConnectBtn.addEventListener('click', () => {
@@ -929,6 +1005,14 @@ function initMobileController() {
 
 // Global initialization
 initMobileController();
+initEventDelegation();
+initTransferDelegation();
+
+// Trigger full sync on window resize to update hidden viewport rendering
+window.addEventListener('resize', () => {
+  queueRenderTransfers();
+});
+
 loadNetworkInterfaces();
 loadPeersAndConnections();
 connect();
