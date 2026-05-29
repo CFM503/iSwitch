@@ -21,7 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 )
 
-var version = "v1.0.19"
+var version = "v1.0.20"
 
 var (
 	p2pHost    host.Host

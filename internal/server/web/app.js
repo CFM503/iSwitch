@@ -246,7 +246,7 @@ function renderPeers() {
 
   const ownShort = document.getElementById('shortCode').textContent.replace('#', '');
   const ownItem = myId ? `
-    <li class="own-device-item" style="border: 1px dashed var(--primary); cursor: default; opacity: 0.9; margin-bottom: 8px; display:flex; align-items:center; gap:12px; padding: 12px 14px; border-radius: var(--radius-md); background: rgba(99, 102, 241, 0.04);">
+    <li class="own-device-item" style="border: 1px dashed var(--primary); cursor: default; opacity: 0.9; display:flex; align-items:center; gap:12px; padding: 12px 14px; border-radius: var(--radius-md); background: rgba(99, 102, 241, 0.04);">
       <div class="peer-avatar" style="background:var(--primary); font-size:11px; font-weight:800; color: #fff;">本机</div>
       <div class="peer-info-container">
         <div class="peer-name" style="color:var(--primary); font-weight:800;">Device #${ownShort} (本机)</div>
@@ -296,7 +296,7 @@ function renderPeers() {
     const color = getPeerColor(id);
     const initial = short.slice(-2).toUpperCase();
     
-    return `<li data-id="${id}" data-connected="${isConnected}" style="margin-bottom: 8px; display:flex; align-items:center; gap:12px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid transparent; cursor: pointer; transition: var(--transition);">
+    return `<li data-id="${id}" data-connected="${isConnected}" style="display:flex; align-items:center; gap:12px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid transparent; cursor: pointer; transition: var(--transition);">
       <div class="peer-avatar" style="background:${color}">${initial}</div>
       <div class="peer-info-container">
         <div class="peer-name">${friendly}</div>
