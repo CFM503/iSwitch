@@ -42,6 +42,14 @@ function setConnStatus(state) {
   el.querySelector('.conn-label').textContent =
     state === 'connected' ? 'Connected' :
     state === 'reconnecting' ? 'Reconnecting...' : 'Disconnected';
+
+  const mEl = document.getElementById('mobileConnStatus');
+  if (mEl) {
+    mEl.className = 'conn-status ' + state;
+    mEl.querySelector('.conn-label').textContent =
+      state === 'connected' ? 'Connected' :
+      state === 'reconnecting' ? 'Reconnecting...' : 'Disconnected';
+  }
 }
 
 function connect() {
@@ -77,6 +85,12 @@ function handleMsg(msg) {
       myId = msg.id;
       document.getElementById('peerId').textContent = msg.id;
       document.getElementById('shortCode').textContent = '#' + msg.short_code;
+      
+      const mPeerId = document.getElementById('mobilePeerId');
+      if (mPeerId) mPeerId.textContent = msg.id;
+      const mShort = document.getElementById('mobileShortCode');
+      if (mShort) mShort.textContent = '#' + msg.short_code;
+
       loadMultiaddr();
       loadPeersAndConnections();
       break;
@@ -129,14 +143,23 @@ function loadMultiaddr() {
         codeEl.textContent = info.connection_code;
         codeEl.title = info.connection_code;
       }
+      const mCodeEl = document.getElementById('mobileConnectionCode');
+      if (info.connection_code && mCodeEl) {
+        mCodeEl.textContent = info.connection_code;
+        mCodeEl.title = info.connection_code;
+      }
       // WAN toggle
       const wanEl = document.getElementById('wanToggle');
       if (wanEl) wanEl.checked = !!info.wan_enabled;
+      const mWanEl = document.getElementById('mobileWanToggle');
+      if (mWanEl) mWanEl.checked = !!info.wan_enabled;
 
       // Update app version in UI
       if (info.version) {
         const verEl = document.getElementById('appVersion');
         if (verEl) verEl.textContent = info.version;
+        const mVerEl = document.getElementById('mobileVersion');
+        if (mVerEl) mVerEl.textContent = info.version;
       }
     })
     .catch(() => {});
@@ -197,6 +220,7 @@ function connectToPeer(addr) {
 
 function renderPeers() {
   const list = document.getElementById('peerList');
+  const mList = document.getElementById('mobilePeerList');
   const ids = Object.keys(peers).filter(id => id !== myId);
   document.getElementById('peerCount').textContent = ids.length;
 
@@ -211,12 +235,54 @@ function renderPeers() {
     </li>
   ` : '';
 
-  if (ids.length === 0) {
-    list.innerHTML = ownItem + '<li class="empty-state" style="padding:16px 8px;text-align:center;font-size:12px;color:var(--text-muted)">No other devices found / 暂无其他设备</li>';
-    return;
+  // 1. Render Radar Screen
+  const radarWrapper = document.getElementById('radar-peers');
+  if (radarWrapper) {
+    if (ids.length === 0) {
+      radarWrapper.innerHTML = '';
+      document.getElementById('radarStateText').textContent = 'Searching for devices... / 正在搜寻设备...';
+    } else {
+      document.getElementById('radarStateText').textContent = `Discovered ${ids.length} device(s) / 发现 ${ids.length} 台设备`;
+      radarWrapper.innerHTML = ids.map((id, index) => {
+        const p = peers[id];
+        const isConnected = !!connectedPeers[id] || p.connected;
+        const short = p.short_code || id.slice(-8);
+        const initial = short.slice(-2).toUpperCase();
+        const color = getPeerColor(id);
+        
+        // Circular math to arrange elements cleanly
+        const angle = (index * (2 * Math.PI) / ids.length) + (Math.PI / 4);
+        const radius = 80 + (index % 2) * 16;
+        const x = Math.round(50 + Math.cos(angle) * (radius / 2.4));
+        const y = Math.round(50 + Math.sin(angle) * (radius / 2.4));
+        const connClass = isConnected ? ' connected' : '';
+        
+        return `<div class="radar-peer-node${connClass}" data-id="${id}" style="left:${x}%; top:${y}%;">
+          <div class="radar-peer-avatar" style="background:${color};">${initial}</div>
+          <span class="radar-peer-name">#${short}</span>
+        </div>`;
+      }).join('');
+
+      radarWrapper.querySelectorAll('.radar-peer-node').forEach(node => {
+        node.addEventListener('click', () => {
+          const id = node.dataset.id;
+          const p = peers[id];
+          const isConnected = !!connectedPeers[id] || p.connected;
+          if (!isConnected) {
+            connectToPeer(id);
+          } else {
+            selectedPeerId = id;
+            renderConnectedPeers();
+            showToast('Selected device / 已选中设备', 'success');
+          }
+        });
+      });
+    }
   }
 
-  list.innerHTML = ownItem + ids.map(id => {
+  // 2. Render Lists
+  const emptyItem = '<li class="empty-state" style="padding:16px 8px;text-align:center;font-size:12px;color:var(--text-muted);width:100%;">No other devices found / 暂无其他设备</li>';
+  const listHTML = ids.length === 0 ? ownItem + emptyItem : ownItem + ids.map(id => {
     const p = peers[id];
     const isConnected = !!connectedPeers[id] || p.connected;
     const short = p.short_code || id.slice(-8);
@@ -235,39 +301,45 @@ function renderPeers() {
     </li>`;
   }).join('');
 
-  list.querySelectorAll('li[data-id]').forEach(li => {
-    li.addEventListener('click', () => {
-      const id = li.dataset.id;
-      const isConnected = li.dataset.connected === 'true';
-      if (!isConnected) {
-        connectToPeer(id);
-      } else {
-        selectedPeerId = id;
-        renderConnectedPeers();
-        showToast('Selected device for transfer / 已选中该传输设备', 'success');
-      }
+  if (list) list.innerHTML = listHTML;
+  if (mList) mList.innerHTML = listHTML;
+
+  const bindClicks = (el) => {
+    if (!el) return;
+    el.querySelectorAll('li[data-id]').forEach(li => {
+      li.addEventListener('click', () => {
+        const id = li.dataset.id;
+        const isConnected = li.dataset.connected === 'true';
+        if (!isConnected) {
+          connectToPeer(id);
+        } else {
+          selectedPeerId = id;
+          renderConnectedPeers();
+          showToast('Selected device for transfer / 已选中该传输设备', 'success');
+        }
+      });
     });
-  });
+  };
+
+  bindClicks(list);
+  bindClicks(mList);
 }
 
 function renderConnectedPeers() {
   const list = document.getElementById('connectedPeerList');
+  const mList = document.getElementById('mobileConnectedPeerList');
   const ids = Object.keys(connectedPeers);
   document.getElementById('connectedCount').textContent = ids.length;
 
-  if (ids.length === 0) {
-    list.innerHTML = '<li class="empty-state" style="padding:16px 8px;text-align:center;font-size:12px;color:var(--text-muted)">No active connections / 暂无连接</li>';
-    return;
-  }
-
-  list.innerHTML = ids.map(id => {
+  const emptyState = '<li class="empty-state" style="padding:16px 8px;text-align:center;font-size:12px;color:var(--text-muted);width:100%;">No active connections / 暂无连接</li>';
+  const listHTML = ids.length === 0 ? emptyState : ids.map(id => {
     const p = connectedPeers[id];
     const short = p.short_code || id.slice(-8);
     const friendly = `Device #${short}`;
     const selected = id === selectedPeerId ? ' selected' : '';
     const color = getPeerColor(id);
     const initial = short.slice(-2).toUpperCase();
-    return `<li data-id="${id}" class="${selected}" style="position:relative; display:flex; align-items:center; gap:12px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid transparent; cursor: pointer; transition: var(--transition);">
+    return `<li data-id="${id}" class="${selected}" style="position:relative; display:flex; align-items:center; gap:12px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid transparent; cursor: pointer; transition: var(--transition); width:100%;">
       <div class="peer-avatar" style="background:${color}">${initial}</div>
       <div class="peer-info-container" style="flex:1; min-width:0;">
         <div class="peer-name">${friendly}</div>
@@ -282,21 +354,30 @@ function renderConnectedPeers() {
     </li>`;
   }).join('');
 
-  list.querySelectorAll('li[data-id]').forEach(li => {
-    li.addEventListener('click', (e) => {
-      if (e.target.closest('.disconnect-btn')) return;
-      selectedPeerId = li.dataset.id;
-      renderConnectedPeers();
-    });
-  });
+  if (list) list.innerHTML = listHTML;
+  if (mList) mList.innerHTML = listHTML;
 
-  list.querySelectorAll('.disconnect-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.id;
-      disconnectPeer(id);
+  const bindClicks = (el) => {
+    if (!el) return;
+    el.querySelectorAll('li[data-id]').forEach(li => {
+      li.addEventListener('click', (e) => {
+        if (e.target.closest('.disconnect-btn')) return;
+        selectedPeerId = li.dataset.id;
+        renderConnectedPeers();
+      });
     });
-  });
+
+    el.querySelectorAll('.disconnect-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        disconnectPeer(id);
+      });
+    });
+  };
+
+  bindClicks(list);
+  bindClicks(mList);
 }
 
 function disconnectPeer(id) {
@@ -320,95 +401,113 @@ function disconnectPeer(id) {
 
 function renderTransfers() {
   const list = document.getElementById('transferList');
+  const mList = document.getElementById('mobileTransferList');
   const empty = document.getElementById('emptyTransfers');
+  const mEmpty = document.getElementById('mobileEmptyTransfers');
   const arr = Object.values(transfers);
 
+  const activeCount = arr.filter(t => t.status === 'pending' || t.status === 'transferring').length;
+  const badge = document.getElementById('mobileActiveBadge');
+  if (badge) {
+    badge.textContent = activeCount;
+    badge.classList.toggle('hidden', activeCount === 0);
+  }
+
   if (arr.length === 0) {
-    list.innerHTML = '';
-    empty.style.display = 'block';
+    if (list) list.innerHTML = '';
+    if (mList) mList.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    if (mEmpty) mEmpty.style.display = 'block';
     return;
   }
-  empty.style.display = 'none';
+  if (empty) empty.style.display = 'none';
+  if (mEmpty) mEmpty.style.display = 'none';
 
-  arr.forEach(t => {
-    const pct = t.size > 0 ? Math.round((t.bytes_done / t.size) * 100) : 0;
-    const speed = t.speed > 0 ? formatSpeed(t.speed) : '';
-    const done = formatSize(t.bytes_done);
-    const size = formatSize(t.size);
-    const statusClass = t.status === 'complete' ? 'complete' : t.status === 'failed' ? 'failed' : '';
+  const updateList = (targetList) => {
+    if (!targetList) return;
+    arr.forEach(t => {
+      const pct = t.size > 0 ? Math.round((t.bytes_done / t.size) * 100) : 0;
+      const speed = t.speed > 0 ? formatSpeed(t.speed) : '';
+      const done = formatSize(t.bytes_done);
+      const size = formatSize(t.size);
+      const statusClass = t.status === 'complete' ? 'complete' : t.status === 'failed' ? 'failed' : '';
 
-    let card = document.getElementById(`transfer-card-${t.id}`);
-    if (!card) {
-      card = document.createElement('div');
-      card.id = `transfer-card-${t.id}`;
-      card.className = `transfer-item ${statusClass}`;
-      
-      const icon = t.direction === 'send' ? '↑' : '↓';
-      
-      card.innerHTML = `
-        <div class="transfer-icon">${icon}</div>
-        <div class="transfer-info">
-          <div class="transfer-name">${t.filename}</div>
-          <div class="transfer-meta">
-            <span class="meta-size">${size}</span>
-            <span class="meta-peer">${t.direction === 'send' ? 'To' : 'From'}: ${t.peer_id.slice(-8)}</span>
-            <span class="meta-speed">${speed ? speed : ''}</span>
+      const prefix = targetList.id === 'mobileTransferList' ? 'm-' : '';
+      let card = document.getElementById(`${prefix}transfer-card-${t.id}`);
+      if (!card) {
+        card = document.createElement('div');
+        card.id = `${prefix}transfer-card-${t.id}`;
+        card.className = `transfer-item ${statusClass}`;
+        
+        const icon = t.direction === 'send' ? '↑' : '↓';
+        
+        card.innerHTML = `
+          <div class="transfer-icon">${icon}</div>
+          <div class="transfer-info">
+            <div class="transfer-name">${t.filename}</div>
+            <div class="transfer-meta">
+              <span class="meta-size">${size}</span>
+              <span class="meta-peer">${t.direction === 'send' ? 'To' : 'From'}: ${t.peer_id.slice(-8)}</span>
+              <span class="meta-speed">${speed ? speed : ''}</span>
+            </div>
           </div>
-        </div>
-        <div class="transfer-progress">
-          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-          <div class="progress-text">${pct}% (${done})</div>
-        </div>
-        <div class="transfer-actions"></div>
-      `;
-      list.appendChild(card);
-    }
-
-    // Pinpoint updates
-    if (card.className !== `transfer-item ${statusClass}`) {
-      card.className = `transfer-item ${statusClass}`;
-    }
-    
-    const fill = card.querySelector('.progress-fill');
-    if (fill && fill.style.width !== `${pct}%`) {
-      fill.style.width = `${pct}%`;
-    }
-    
-    const progText = card.querySelector('.progress-text');
-    if (progText && progText.textContent !== `${pct}% (${done})`) {
-      progText.textContent = `${pct}% (${done})`;
-    }
-    
-    const speedSpan = card.querySelector('.meta-speed');
-    if (speedSpan && speedSpan.textContent !== speed) {
-      speedSpan.textContent = speed ? speed : '';
-      speedSpan.style.display = speed ? 'inline-block' : 'none';
-    }
-
-    const actions = card.querySelector('.transfer-actions');
-    if (actions) {
-      let actionHTML = '';
-      if (t.status === 'complete' && t.direction === 'receive') {
-        actionHTML = `<button onclick="downloadFile('${t.id}', '${t.filename.replace(/'/g, "\\'")}')">Save</button>`;
-      } else if (t.status === 'pending' || t.status === 'transferring') {
-        actionHTML = `<span class="transfer-status-text">${t.status}</span>`;
-      } else if (t.status === 'failed') {
-        actionHTML = `<span class="transfer-status-text status-failed">${t.status}</span>`;
+          <div class="transfer-progress">
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div class="progress-text">${pct}% (${done})</div>
+          </div>
+          <div class="transfer-actions"></div>
+        `;
+        targetList.appendChild(card);
       }
-      if (actions.innerHTML !== actionHTML) {
-        actions.innerHTML = actionHTML;
-      }
-    }
-  });
 
-  // Purge removed transfers
-  const existingCards = list.querySelectorAll('.transfer-item');
-  existingCards.forEach(card => {
-    const id = card.id.replace('transfer-card-', '');
-    if (!transfers[id]) {
-      card.remove();
-    }
-  });
+      if (card.className !== `transfer-item ${statusClass}`) {
+        card.className = `transfer-item ${statusClass}`;
+      }
+      
+      const fill = card.querySelector('.progress-fill');
+      if (fill && fill.style.width !== `${pct}%`) {
+        fill.style.width = `${pct}%`;
+      }
+      
+      const progText = card.querySelector('.progress-text');
+      if (progText && progText.textContent !== `${pct}% (${done})`) {
+        progText.textContent = `${pct}% (${done})`;
+      }
+      
+      const speedSpan = card.querySelector('.meta-speed');
+      if (speedSpan && speedSpan.textContent !== speed) {
+        speedSpan.textContent = speed ? speed : '';
+        speedSpan.style.display = speed ? 'inline-block' : 'none';
+      }
+
+      const actions = card.querySelector('.transfer-actions');
+      if (actions) {
+        let actionHTML = '';
+        if (t.status === 'complete' && t.direction === 'receive') {
+          actionHTML = `<button onclick="downloadFile('${t.id}', '${t.filename.replace(/'/g, "\\'")}')">Save</button>`;
+        } else if (t.status === 'pending' || t.status === 'transferring') {
+          actionHTML = `<span class="transfer-status-text">${t.status}</span>`;
+        } else if (t.status === 'failed') {
+          actionHTML = `<span class="transfer-status-text status-failed">${t.status}</span>`;
+        }
+        if (actions.innerHTML !== actionHTML) {
+          actions.innerHTML = actionHTML;
+        }
+      }
+    });
+
+    const existingCards = targetList.querySelectorAll('.transfer-item');
+    existingCards.forEach(card => {
+      const prefix = targetList.id === 'mobileTransferList' ? 'm-' : '';
+      const id = card.id.replace(`${prefix}transfer-card-`, '');
+      if (!transfers[id]) {
+        card.remove();
+      }
+    });
+  };
+
+  updateList(list);
+  updateList(mList);
 }
 
 function formatSize(bytes) {
@@ -660,14 +759,23 @@ function loadNetworkInterfaces() {
 
       const panel = document.getElementById('segmentScanPanel');
       const select = document.getElementById('subnetSelect');
-      if (interfaces && interfaces.length > 0) {
-        select.innerHTML = interfaces.map(ifi => {
-          return `<option value="${ifi.broadcast}">${ifi.segment} (${ifi.name} - ${ifi.ip})</option>`;
-        }).join('');
-        panel.classList.remove('hidden');
-      } else {
-        panel.classList.add('hidden');
-      }
+      const mPanel = document.getElementById('mobileSegmentScanPanel');
+      const mSelect = document.getElementById('mobileSubnetSelect');
+
+      const loadSelectOptions = (selEl, panelEl) => {
+        if (!selEl || !panelEl) return;
+        if (interfaces && interfaces.length > 0) {
+          selEl.innerHTML = interfaces.map(ifi => {
+            return `<option value="${ifi.broadcast}">${ifi.segment} (${ifi.name} - ${ifi.ip})</option>`;
+          }).join('');
+          panelEl.classList.remove('hidden');
+        } else {
+          panelEl.classList.add('hidden');
+        }
+      };
+
+      loadSelectOptions(select, panel);
+      loadSelectOptions(mSelect, mPanel);
     })
     .catch(() => {});
 }
@@ -717,6 +825,110 @@ if (scanBtn) {
   });
 }
 
+// Sync settings, navigation tabs, and inputs between PC and mobile layout DOMs
+function initMobileController() {
+  // 1. Mobile Bottom Tab Navigation Switching
+  const tabs = document.querySelectorAll('.nav-tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      const targetTab = tab.dataset.tab;
+      document.querySelectorAll('.mobile-tab-view').forEach(view => {
+        view.classList.remove('active');
+      });
+      const targetView = document.getElementById(`mobile-view-${targetTab}`);
+      if (targetView) targetView.classList.add('active');
+    });
+  });
+
+  // 2. Sync WAN settings
+  const mobileWanToggleEl = document.getElementById('mobileWanToggle');
+  if (mobileWanToggleEl) {
+    mobileWanToggleEl.addEventListener('change', () => {
+      wanToggleEl.checked = mobileWanToggleEl.checked;
+      wanToggleEl.dispatchEvent(new Event('change'));
+    });
+  }
+
+  // 3. Sync Auto-download settings
+  const mobileAutoDownloadEl = document.getElementById('mobileAutoDownload');
+  if (mobileAutoDownloadEl) {
+    mobileAutoDownloadEl.addEventListener('change', () => {
+      autoDownloadEl.checked = mobileAutoDownloadEl.checked;
+      autoDownloadEl.dispatchEvent(new Event('change'));
+    });
+  }
+
+  // 4. Sync Subnet selector and scanning triggers
+  const mScanBtn = document.getElementById('mobileSubnetScanBtn');
+  if (mScanBtn) {
+    mScanBtn.addEventListener('click', () => {
+      const select = document.getElementById('mobileSubnetSelect');
+      const mainSelect = document.getElementById('subnetSelect');
+      if (select && mainSelect) {
+        mainSelect.value = select.value;
+        
+        mScanBtn.disabled = true;
+        mScanBtn.classList.add('scanning');
+        const textEl = document.getElementById('mobileScanBtnText');
+        const originalText = textEl.textContent;
+        textEl.textContent = 'Scanning... / 正在扫描...';
+        
+        // Trigger click event on main subnetScanBtn
+        scanBtn.click();
+        
+        // Wait and reset the visual state once the scan finishes
+        setTimeout(() => {
+          mScanBtn.disabled = false;
+          mScanBtn.classList.remove('scanning');
+          textEl.textContent = originalText;
+        }, 5000);
+      }
+    });
+  }
+
+  // 5. Short code click/copy trigger
+  const mShortCode = document.getElementById('mobileShortCodeCard');
+  if (mShortCode) {
+    mShortCode.addEventListener('click', () => {
+      document.getElementById('shortCodeCard').click();
+    });
+  }
+
+  // 6. Mobile File Picker triggers
+  const mChooseBtn = document.getElementById('mobileChooseFilesBtn');
+  const mFileInput = document.getElementById('mobileFileInput');
+  if (mChooseBtn && mFileInput) {
+    mChooseBtn.addEventListener('click', () => {
+      mFileInput.click();
+    });
+    mFileInput.addEventListener('change', (e) => {
+      for (const file of e.target.files) {
+        sendFileWS(file);
+      }
+      e.target.value = '';
+    });
+  }
+
+  // 7. Manual Connect trigger
+  const mConnectBtn = document.getElementById('mobileConnectBtn');
+  if (mConnectBtn) {
+    mConnectBtn.addEventListener('click', () => {
+      const input = document.getElementById('mobilePeerAddrInput');
+      const mainInput = document.getElementById('peerAddrInput');
+      if (input && mainInput) {
+        mainInput.value = input.value;
+        document.getElementById('connectBtn').click();
+        input.value = '';
+      }
+    });
+  }
+}
+
+// Global initialization
+initMobileController();
 loadNetworkInterfaces();
 loadPeersAndConnections();
 connect();

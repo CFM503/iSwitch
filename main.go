@@ -13,7 +13,7 @@ import (
 	"iswitch/internal/server"
 )
 
-var version = "v1.0.17"
+var version = "v1.0.18"
 
 func main() {
 	versionFlag := flag.Bool("version", false, "print version and exit")

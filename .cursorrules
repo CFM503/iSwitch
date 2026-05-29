@@ -1,0 +1,12 @@
+# iSwitch Assistant Rules & Architecture Guidelines
+
+## UI Separation Constraint (CRITICAL)
+- **Do NOT combine or merge Mobile and Desktop layouts.**
+- The frontend must remain decoupled into two distinct presentation modes based on viewport size:
+  - **Desktop Layout (`#desktopLayout`)**: Spacious dual-pane dashboard for screen widths >= 768px (sidebar list + main dropzone & transfer pipeline).
+  - **Mobile Layout (`#mobileLayout`)**: Native-app-like SPA wrapper for screen widths < 768px (bottom tab bar with "Radar Scan", "My Device", and "Transfers" views).
+- Maintain shared JavaScript state synchronizers so that dynamic lists (discovered peers, connections, active transfers) are updated in both layout DOM trees simultaneously.
+
+## Android JNI & Native Communication
+- Due to strict Android SELinux POSIX sandboxing, Go's `net.Interfaces` and `net.InterfaceAddrs` calls can return empty lists.
+- ALWAYS use the native Android JavascriptInterface bridge `Android.getLocalInterfacesJson()` as the fallback query in web frontend script `app.js` when fetching local interfaces lists on mobile.
