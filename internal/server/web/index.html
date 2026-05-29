@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iSwitch — Decentralized P2P File Transfer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" class="glass-bg">
+  <header class="glass-header">
+    <div class="logo-area">
+      <svg class="logo-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m16 3 4 4-4 4"></path>
+        <path d="M20 7H4a2 2 0 0 0-2 2v5"></path>
+        <path d="m8 21-4-4 4-4"></path>
+        <path d="M4 17h16a2 2 0 0 0 2-2V9"></path>
+      </svg>
+      <h1>iSwitch</h1>
+      <span id="appVersion" class="version-badge">v1.0.17</span>
+    </div>
+    
+    <div id="connStatus" class="conn-status disconnected" title="Connection status">
+      <span class="conn-dot"></span>
+      <span class="conn-label">Disconnected</span>
+    </div>
+    
+    <div class="header-details">
+      <!-- 4-Digit Quick Connect Code Card (Highly visible, clickable, copyable) -->
+      <div class="quick-connect-card widget-card clickable-short-code" id="shortCodeCard" title="Click to copy Quick Connect Code">
+        <span id="shortCode" class="short-code">#----</span>
+        <div class="label-val">
+          <span class="label">Quick Connect Code</span>
+          <span class="quick-connect-sub">Click to copy & share</span>
+        </div>
+        <button class="icon-btn" title="Copy Code">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Advanced Info Trigger -->
+      <button id="toggleAdvancedBtn" class="advanced-toggle-btn widget-card" title="Toggle full connection details">
+        <svg class="toggle-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+        <span class="toggle-btn-text">Advanced Info</span>
+      </button>
+
+      <!-- Advanced Panel containing the long strings (collapsed by default) -->
+      <div id="advancedPanel" class="advanced-panel-wrapper hidden">
+        <div class="peer-info widget-card">
+          <div class="label-val">
+            <span class="label">My Peer ID</span>
+            <code id="peerId" class="mono">-</code>
+          </div>
+          <button id="copyBtn" class="icon-btn" title="Copy Peer ID">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="connection-code-info widget-card">
+          <div class="label-val">
+            <span class="label">Full Connection Code</span>
+            <code id="connectionCode" class="mono">-</code>
+          </div>
+          <button id="copyConnCodeBtn" class="icon-btn" title="Copy Connection Code">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="multiaddr-info widget-card">
+          <div class="label-val">
+            <span class="label">Multiaddress</span>
+            <code id="multiaddr" class="multiaddr-addr mono">-</code>
+          </div>
+          <button id="copyAddrBtn" class="icon-btn" title="Copy Multiaddr">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings">
+      <label class="toggle-container" title="Enable WAN discovery to connect via short code across networks">
+        <input type="checkbox" id="wanToggle">
+        <span class="slider"></span>
+        <span class="toggle-text">WAN</span>
+      </label>
+      <label class="toggle-container">
+        <input type="checkbox" id="autoDownload" checked>
+        <span class="slider"></span>
+        <span class="toggle-text">Auto-download</span>
+      </label>
+    </div>
+  </header>
+
+  <div id="layout">
+    <aside id="sidebar" class="glass-sidebar">
+      <!-- Connected Devices Section -->
+      <div class="sidebar-header">
+        <h2>Connected / 已连接设备</h2>
+        <span id="connectedCount" class="badge">0</span>
+      </div>
+      <ul id="connectedPeerList" class="custom-scroll" style="margin-bottom: 24px;"></ul>
+
+      <!-- Discovered Peers Section -->
+      <div class="sidebar-header" style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px;">
+        <h2>Discovered / 发现的设备</h2>
+        <span id="peerCount" class="badge">0</span>
+      </div>
+      
+      <ul id="peerList" class="custom-scroll"></ul>
+      
+      <!-- Network Segment Selection Panel -->
+      <div id="segmentScanPanel" class="segment-scan-card widget-card hidden">
+        <div class="label-val" style="width: 100%;">
+          <span class="label">Select Subnet / 选择网段</span>
+          <select id="subnetSelect" class="subnet-dropdown"></select>
+        </div>
+        <button id="subnetScanBtn" class="scan-btn">
+          <span id="scanBtnText">Scan Subnet / 扫描网段</span>
+          <svg id="scanIcon" class="scan-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="manual-connect">
+        <input type="text" id="peerAddrInput" placeholder="Enter 4-digit short code (e.g. 1234), connection code, or multiaddress...">
+        <button id="connectBtn">
+          <span>Connect</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <main class="dashboard-main">
+      <div id="dropZone" class="drop-zone-card">
+        <div class="drop-zone-content">
+          <div class="drop-icon-glow">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <h3>Drag & Drop Files / 拖拽或选择文件</h3>
+          <p>Drop files here or <a href="#" id="pickLink">choose files / 选择文件</a> to transfer</p>
+          <input type="file" id="fileInput" multiple hidden>
+        </div>
+      </div>
+
+      <div id="transferSection" class="glass-card">
+        <div class="section-header">
+          <h2>Transfers Pipeline</h2>
+        </div>
+        <div id="transferList" class="custom-scroll"></div>
+        <div id="emptyTransfers" class="empty-state">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <p>No active file transfers found</p>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

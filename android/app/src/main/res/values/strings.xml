@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">iSwitch</string>
+    <string name="starting">Starting…</string>
+    <string name="saving_file">Saving file…</string>
+    <string name="file_saved">File saved</string>
+    <string name="save_failed">Save failed</string>
+    <string name="share">Share</string>
+</resources>

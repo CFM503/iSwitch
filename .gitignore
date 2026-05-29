@@ -1,0 +1,23 @@
+# iSwitch gitignore
+
+# Go
+*.exe
+*.test
+*.out
+go.work
+
+# Build outputs
+build/
+android/app/build/
+android/app/src/main/assets/iswitch-*
+android/.gradle/
+android/local.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml

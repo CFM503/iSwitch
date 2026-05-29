@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">iSwitch</string>
+    <string name="starting">正在启动…</string>
+    <string name="saving_file">正在保存文件…</string>
+    <string name="file_saved">文件已保存</string>
+    <string name="save_failed">保存失败</string>
+    <string name="share">分享</string>
+</resources>
