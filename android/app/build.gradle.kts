@@ -11,8 +11,8 @@ android {
         applicationId = "com.iswitch.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 19
-        versionName = "1.0.19"
+        versionCode = 21
+        versionName = "1.0.21"
     }
 
     buildTypes {

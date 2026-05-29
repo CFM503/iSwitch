@@ -31,7 +31,7 @@
           <path d="M4 17h16a2 2 0 0 0 2-2V9"></path>
         </svg>
         <h1>iSwitch</h1>
-        <span id="appVersion" class="version-badge">v1.0.20</span>
+        <span id="appVersion" class="version-badge">v1.0.21</span>
       </div>
       
       <div id="connStatus" class="conn-status disconnected" title="Connection status">
@@ -202,7 +202,7 @@
           <path d="M4 17h16a2 2 0 0 0 2-2V9"></path>
         </svg>
         <h1>iSwitch</h1>
-        <span id="mobileVersion" class="mobile-version-badge">v1.0.20</span>
+        <span id="mobileVersion" class="mobile-version-badge">v1.0.21</span>
       </div>
       <div id="mobileConnStatus" class="conn-status disconnected">
         <span class="conn-dot"></span>
@@ -263,12 +263,12 @@
             </div>
           </div>
 
-          <div class="segment-scan-card widget-card" id="mobileSegmentScanPanel" style="width: 100%; margin-top: 14px; flex-direction:column; align-items:flex-start; gap:12px;">
+          <div class="segment-scan-card widget-card" id="mobileSegmentScanPanel">
             <div class="label-val" style="width: 100%;">
               <span class="label">Select Subnet / 选择网段</span>
               <select id="mobileSubnetSelect" class="subnet-dropdown" style="width:100%; margin-top:6px;"></select>
             </div>
-            <button id="mobileSubnetScanBtn" class="scan-btn" style="width:100%; height:44px; margin-top:4px;">
+            <button id="mobileSubnetScanBtn" class="scan-btn" style="width:100%;">
               <span id="mobileScanBtnText">Scan Subnet / 扫描网段</span>
               <svg id="mobileScanIcon" class="scan-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
@@ -276,37 +276,37 @@
             </button>
           </div>
 
-          <div class="mobile-settings-list" style="margin-top: 14px; display:flex; flex-direction:column; gap:10px;">
-            <div class="settings-item widget-card" style="width:100%; justify-content:space-between; height:48px;">
-              <span style="font-size:13px; font-weight:600;">Enable WAN mode</span>
-              <label class="toggle-container">
+          <div class="mobile-settings-list">
+            <div class="settings-item widget-card">
+              <span>Enable WAN mode</span>
+              <label class="toggle-container" style="margin-left:auto;">
                 <input type="checkbox" id="mobileWanToggle">
                 <span class="slider"></span>
               </label>
             </div>
-            <div class="settings-item widget-card" style="width:100%; justify-content:space-between; height:48px;">
-              <span style="font-size:13px; font-weight:600;">Auto-download preference</span>
-              <label class="toggle-container">
+            <div class="settings-item widget-card">
+              <span>Auto-download preference</span>
+              <label class="toggle-container" style="margin-left:auto;">
                 <input type="checkbox" id="mobileAutoDownload" checked>
                 <span class="slider"></span>
               </label>
             </div>
           </div>
 
-          <div class="mobile-advanced-details" style="margin-top: 14px; display:flex; flex-direction:column; gap:10px;">
-            <div class="widget-card" style="width:100%; flex-direction:column; align-items:flex-start; gap:4px;">
-              <span class="label" style="font-size:9px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">My Peer ID</span>
-              <code id="mobilePeerId" class="mono" style="font-size:10px; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text);">-</code>
+          <div class="mobile-advanced-details">
+            <div class="widget-card">
+              <span class="label">My Peer ID</span>
+              <code id="mobilePeerId" class="mono">-</code>
             </div>
-            <div class="widget-card" style="width:100%; flex-direction:column; align-items:flex-start; gap:4px;">
-              <span class="label" style="font-size:9px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Full Connection Code</span>
-              <code id="mobileConnectionCode" class="mono" style="font-size:10px; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text);">-</code>
+            <div class="widget-card">
+              <span class="label">Full Connection Code</span>
+              <code id="mobileConnectionCode" class="mono">-</code>
             </div>
           </div>
           
-          <div class="manual-connect" style="margin-top: 14px; border:none; padding:0;">
-            <input type="text" id="mobilePeerAddrInput" placeholder="Enter short code, connection code, etc..." style="width:100%; height:44px;">
-            <button id="mobileConnectBtn" class="manual-connect-btn" style="width:100%; height:44px; margin-top:8px;">
+          <div class="manual-connect" style="border:none; padding:0;">
+            <input type="text" id="mobilePeerAddrInput" placeholder="Enter short code, connection code, etc...">
+            <button id="mobileConnectBtn" class="manual-connect-btn">
               <span>Connect</span>
             </button>
           </div>

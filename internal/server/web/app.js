@@ -19,9 +19,15 @@ const autoDownloadEl = document.getElementById('autoDownload');
 const savedAutoDl = localStorage.getItem('autoDownload');
 if (savedAutoDl !== null) {
   autoDownloadEl.checked = savedAutoDl === 'true';
+  // 修复：同步移动端复选框初始值
+  const mobileAutoDownloadEl = document.getElementById('mobileAutoDownload');
+  if (mobileAutoDownloadEl) mobileAutoDownloadEl.checked = savedAutoDl === 'true';
 }
 autoDownloadEl.addEventListener('change', () => {
   localStorage.setItem('autoDownload', autoDownloadEl.checked);
+  // 同步移动端状态
+  const mobileAutoDownloadEl = document.getElementById('mobileAutoDownload');
+  if (mobileAutoDownloadEl) mobileAutoDownloadEl.checked = autoDownloadEl.checked;
 });
 
 // WAN toggle
@@ -273,8 +279,11 @@ function renderPeers() {
         // Circular math to arrange elements cleanly
         const angle = (index * (2 * Math.PI) / ids.length) + (Math.PI / 4);
         const radius = 80 + (index % 2) * 16;
-        const x = Math.round(50 + Math.cos(angle) * (radius / 2.4));
-        const y = Math.round(50 + Math.sin(angle) * (radius / 2.4));
+        // 修复：限制坐标范围在 [10%, 82%]，防止节点超出 radar 容器边界
+        const rawX = 50 + Math.cos(angle) * (radius / 2.4);
+        const rawY = 50 + Math.sin(angle) * (radius / 2.4);
+        const x = Math.round(Math.max(10, Math.min(82, rawX)));
+        const y = Math.round(Math.max(10, Math.min(82, rawY)));
         const connClass = isConnected ? ' connected' : '';
         
         return `<div class="radar-peer-node${connClass}" data-id="${id}" style="left:${x}%; top:${y}%;">
@@ -287,15 +296,16 @@ function renderPeers() {
 
   // 2. Render Lists
   const emptyItem = '<li class="empty-state" style="padding:16px 8px;text-align:center;font-size:12px;color:var(--text-muted);width:100%;">No other devices found / 暂无其他设备</li>';
-  const listHTML = ids.length === 0 ? ownItem + emptyItem : ownItem + ids.map(id => {
+
+  // PC 端列表 HTML
+  const pcListHTML = ids.length === 0 ? ownItem + emptyItem : ownItem + ids.map(id => {
     const p = peers[id];
     const isConnected = !!connectedPeers[id] || p.connected;
     const short = p.short_code || id.slice(-8);
     const friendly = `Device #${short}`;
-    const statusText = isConnected ? '<span style="font-size:10px; color:var(--success); font-weight:700;">● Connected</span>' : '<span style="font-size:10px; color:var(--text-muted);">○ Click to Connect</span>';
+    const statusText = isConnected ? '<span style="font-size:10px; color:var(--success); font-weight:700;">&#9679; Connected</span>' : '<span style="font-size:10px; color:var(--text-muted);">&#9675; Click to Connect</span>';
     const color = getPeerColor(id);
     const initial = short.slice(-2).toUpperCase();
-    
     return `<li data-id="${id}" data-connected="${isConnected}" style="display:flex; align-items:center; gap:12px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid transparent; cursor: pointer; transition: var(--transition);">
       <div class="peer-avatar" style="background:${color}">${initial}</div>
       <div class="peer-info-container">
@@ -306,8 +316,27 @@ function renderPeers() {
     </li>`;
   }).join('');
 
-  if (list) list.innerHTML = listHTML;
-  if (mList) mList.innerHTML = listHTML;
+  // 移动端列表 HTML：使用更紧凑的内边距适配小屏
+  const mobileListHTML = ids.length === 0 ? emptyItem : ids.map(id => {
+    const p = peers[id];
+    const isConnected = !!connectedPeers[id] || p.connected;
+    const short = p.short_code || id.slice(-8);
+    const friendly = `Device #${short}`;
+    const statusText = isConnected ? '<span style="font-size:10px; color:var(--success); font-weight:700;">&#9679; Connected</span>' : '<span style="font-size:10px; color:var(--text-muted);">&#9675; Tap to Connect</span>';
+    const color = getPeerColor(id);
+    const initial = short.slice(-2).toUpperCase();
+    return `<li data-id="${id}" data-connected="${isConnected}" style="display:flex; align-items:center; gap:10px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid transparent; cursor: pointer; transition: var(--transition);">
+      <div class="peer-avatar" style="background:${color}">${initial}</div>
+      <div class="peer-info-container">
+        <div class="peer-name">${friendly}</div>
+        <div class="peer-id-short">${id.slice(0, 12)}...${id.slice(-6)}</div>
+        <div style="margin-top:2px;">${statusText}</div>
+      </div>
+    </li>`;
+  }).join('');
+
+  if (list) list.innerHTML = pcListHTML;
+  if (mList) mList.innerHTML = mobileListHTML;
 }
 
 function renderConnectedPeers() {
@@ -1010,6 +1039,8 @@ initTransferDelegation();
 
 // Trigger full sync on window resize to update hidden viewport rendering
 window.addEventListener('resize', () => {
+  // 修复：视口切换时清除转换卡片缓存，防止旧元素引用在新视口冲突
+  domCache.transfers = {};
   queueRenderTransfers();
 });
 

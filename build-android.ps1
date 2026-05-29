@@ -1,8 +1,8 @@
 param(
     [switch]$SkipGo,
     [switch]$SkipApk,
-    [string]$Version = "v1.0.20",
-    [string]$ApkName = "iSwitch-v1.0.20.apk"
+    [string]$Version = "v1.0.21",
+    [string]$ApkName = "iSwitch-v1.0.21.apk"
 )
 
 $ErrorActionPreference = "Stop"

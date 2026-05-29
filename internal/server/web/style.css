@@ -116,12 +116,13 @@ body {
   padding: 6px 24px;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
   min-height: 52px;
   flex-shrink: 0;
   z-index: 10;
   box-shadow: 0 1px 10px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
 }
 
 /* Traffic Light Dots */
@@ -164,7 +165,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-right: auto;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .logo-icon {
@@ -183,6 +185,7 @@ body {
   font-weight: 600;
   letter-spacing: -0.1px;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .version-badge {
@@ -260,6 +263,9 @@ body {
   flex-wrap: wrap;
   gap: 10px;
   margin-left: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .widget-card {
@@ -399,7 +405,8 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-left: auto;
+  margin-left: 8px;
+  flex-shrink: 0;
 }
 
 /* macOS Toggle Switches */
@@ -518,11 +525,16 @@ body {
   flex-direction: column;
   gap: 4px;
   max-height: 250px;
+  overflow-y: auto;
 }
 
 #peerList {
   max-height: none;
   flex: 1;
+  overflow-y: auto;
+  /* 修复：必须设置 min-height:0，否则 flex 算法不允许该项缩小至内容以下，
+     导致 segmentScanPanel 和 manual-connect 被死死挤压在底部无法正常显示 */
+  min-height: 0;
 }
 
 #connectedPeerList li, #peerList li {
@@ -614,6 +626,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* 修复：不允许被挤压，确保输入框和按鈕保持完整高度 */
+  flex-shrink: 0;
 }
 
 .manual-connect input {
@@ -658,7 +672,9 @@ body {
   transform: scale(0.98);
 }
 
-/* Subnet segment scanning card */
+/* Subnet segment scanning card
+   ⚠️  注意：此元素同时带有 .widget-card 类（height:30px），必须在此覆盖，
+   否则内容（label + select + button）会溢出并压叠到下方的 manual-connect 输入框 */
 .segment-scan-card {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.04);
@@ -666,8 +682,15 @@ body {
   padding: 12px;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
   margin-top: 6px;
+  /* 关键修复：覆盖 .widget-card 的 height:30px，否则内容溢出造成控件重叠 */
+  height: auto !important;
+  /* 关键修复：确保内容不超出自身边界 */
+  overflow: visible;
+  /* 不允许被 sidebar flex 算法压缩 */
+  flex-shrink: 0;
 }
 
 .subnet-dropdown {
@@ -1191,16 +1214,18 @@ body {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
-  padding: 0 16px;
-  height: 48px;
+  /* safe-area-inset-top 推开顶部刘海区域，固定内容高度 48px */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-bottom: 0;
+  height: calc(48px + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
   z-index: 10;
   overflow: hidden;
-  padding-top: env(safe-area-inset-top, 0px);
-  height: calc(48px + env(safe-area-inset-top, 0px));
 }
 
 .mobile-header .logo-area {
@@ -1248,7 +1273,8 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
-  padding-bottom: 24px;
+  /* 确保底部内容不被 nav bar 遮挡：54px navbar + safe-area + 额外间距 */
+  padding-bottom: calc(54px + env(safe-area-inset-bottom, 0px) + 24px);
   position: relative;
 }
 
@@ -1269,17 +1295,18 @@ body {
 
 /* iOS-style Translucent Tab Bar */
 .mobile-navbar {
-  height: 54px;
   background: rgba(28, 28, 30, 0.85);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-top: 0.5px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: space-around;
-  align-items: center;
+  align-items: flex-start;
   z-index: 100;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* 合并 height 声明，避免重复 */
   height: calc(54px + env(safe-area-inset-bottom, 0px));
+  padding-top: 2px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   flex-shrink: 0;
 }
 
@@ -1427,6 +1454,13 @@ body {
   50% { transform: translateY(-5px) scale(1.04); }
 }
 
+/* 修复：补充缺失的 node-appear 动画，之前 radar-peer-node 引用了但未定义 */
+@keyframes node-appear {
+  0% { transform: scale(0) translateY(6px); opacity: 0; }
+  70% { transform: scale(1.08) translateY(-2px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
 /* Floating Avatar Bubbles on Mobile Radar */
 .radar-peers-wrapper {
   position: absolute;
@@ -1527,6 +1561,22 @@ body {
   gap: 12px;
 }
 
+/* 移动端 me 页面内所有子 widget-card 宽度保持 100% */
+.mobile-me-grid > .segment-scan-card,
+.mobile-me-grid > .manual-connect {
+  width: 100%;
+}
+
+/* 修复：mobile-me-grid 内 segment-scan-card 原有 margin-top:6px 与 gap 叠加，
+   mobile-me-grid 的 manual-connect 的 margin-top:auto 会让它贴底，
+   在移动端垂直排列 flex 容器中应该正常跟随 gap 排列 */
+.mobile-me-grid .manual-connect {
+  margin-top: 0;
+}
+.mobile-me-grid .segment-scan-card {
+  margin-top: 0;
+}
+
 .mobile-me-card {
   width: 100% !important;
   background: rgba(255, 255, 255, 0.03) !important;
@@ -1559,20 +1609,24 @@ body {
   gap: 6px;
 }
 
+/* 修复：统一用 CSS 控制高度，不依赖内联 style */
 .settings-item.widget-card, .mobile-advanced-details .widget-card {
   background: rgba(255, 255, 255, 0.03) !important;
   border: 1px solid rgba(255, 255, 255, 0.03) !important;
   border-radius: var(--radius-md) !important;
   padding: 12px 14px !important;
+  min-height: 48px;
   height: auto !important;
   display: flex !important;
   align-items: center !important;
   width: 100% !important;
+  box-sizing: border-box !important;
+  justify-content: space-between;
 }
 
 .settings-item.widget-card span {
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text);
 }
 
